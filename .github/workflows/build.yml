@@ -1,4 +1,4 @@
-name: Build SpatialShot for Windows
+name: Build drawview for Windows
 
 on:
   push:
@@ -7,17 +7,14 @@ on:
     branches: [ "main" ]
 
 env:
-  # --- CONFIGURE YOUR BUILD ---
-  # Set the Qt version you want to build against
-  QT_VERSION: "6.7.3"
-  # Set the compiler. "win64_msvc2022_64" aligns with Visual Studio 2022 on GitHub runners.
-  QT_TARGET_ARCH: "win64_msvc2022_64"
-  # ----------------------------
+  QT_VERSION: "6.7.0"
+  # preferred arch list (order = preference). We'll pick the first available.
+  PREFERRED_ARCHS: "win64_msvc2022_64;win64_msvc2019_64;win64_mingw73_64"
+  OUTPUT_QT_DIR: "C:/Qt"
 
 jobs:
   build-windows:
     runs-on: windows-latest
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -32,55 +29,137 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Install aqtinstall
-      run: pip install aqtinstall
+    - name: Install required Python tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install --upgrade aqtinstall
 
-    - name: Install Qt (using aqt)
-      run: aqt install-qt windows desktop ${{ env.QT_VERSION }} ${{ env.QT_TARGET_ARCH }} --outputdir C:/Qt
+    - name: Show available Qt architectures (debug)
+      run: |
+        echo "Listing available Qt archives for windows desktop ${QT_VERSION}"
+        python -m aqt list-qt windows desktop --arch ${{ env.QT_VERSION }} | Out-Host
+
+    - name: Choose arch and install Qt (robust)
+      shell: pwsh
+      run: |
+        $qtver = "${{ env.QT_VERSION }}"
+        $outdir = "${{ env.OUTPUT_QT_DIR }}"
+        $preferred = "${{ env.PREFERRED_ARCHS }}".Split(';')
+
+        Write-Host "Available preferred architectures (in order): $preferred"
+        Write-Host "Querying aqt for available architectures..."
+        $listOutput = python -m aqt list-qt windows desktop --arch $qtver 2>&1 | Out-String
+
+        Write-Host $listOutput
+
+        $chosen = $null
+        foreach ($arch in $preferred) {
+            if ($listOutput -match [regex]::Escape($arch)) {
+                $chosen = $arch
+                break
+            }
+        }
+
+        if (-not $chosen) {
+            Write-Host "No preferred arch found in aqt list output. Attempting to pick any available 'win' arch..."
+            # Try to extract something sensible from the output
+            if ($listOutput -match 'win[^\s,]+') {
+                $m = [regex]::Match($listOutput, 'win[^\s,]+')
+                $chosen = $m.Value
+            }
+        }
+
+        if (-not $chosen) {
+            Write-Error "Could not determine a Qt arch to install from aqt list. See previous output for available arch strings."
+            exit 1
+        }
+
+        Write-Host "Chosen arch: $chosen"
+        Write-Host "Installing Qt $qtver / $chosen into $outdir (this can take several minutes)..."
+
+        python -m aqt install-qt windows desktop $qtver $chosen --outputdir $outdir
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "aqt install-qt failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
+        }
+
+        # Export chosen arch for later steps (GitHub Actions env file)
+        "QT_CHOSEN_ARCH=$chosen" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "QT_INSTALL_ROOT=$outdir/$qtver/$chosen" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
     - name: Configure CMake
       shell: pwsh
       run: |
-        # Set CMAKE_PREFIX_PATH for find_package(Qt6)
-        $env:CMAKE_PREFIX_PATH="C:/Qt/${{ env.QT_VERSION }}/${{ env.QT_TARGET_ARCH }}"
-        
-        Write-Host "CMAKE_PREFIX_PATH set to $env:CMAKE_PREFIX_PATH"
-        
-        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
-        
+        # Use the chosen Qt install path
+        $qtPrefix = "${{ env.OUTPUT_QT_DIR }}/${{ env.QT_VERSION }}/$env:QT_CHOSEN_ARCH"
+        Write-Host "Using CMAKE_PREFIX_PATH = $qtPrefix"
+        $env:CMAKE_PREFIX_PATH = $qtPrefix
+
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH"
+
     - name: Build with CMake
       run: cmake --build build --config Release --parallel
 
-    - name: Prepare package directory
-      run: mkdir staging
+    - name: Prepare staging directory
+      run: |
+        if (Test-Path staging) { Remove-Item -Recurse -Force staging }
+        New-Item -ItemType Directory -Path staging | Out-Null
 
-    - name: Deploy dependencies with windeployqt
+    - name: Copy executable to staging
       shell: pwsh
       run: |
-        # This is the path to windeployqt
-        $QT_BIN_PATH = "C:/Qt/${{ env.QT_VERSION }}/${{ env.QT_TARGET_ARCH }}/bin"
-        
-        # This is the path to your compiled .exe
-        $EXE_PATH = "${{ github.workspace }}/build/Release/spatialshot.exe"
-        
-        # Copy the .exe to the staging directory
-        Copy-Item $EXE_PATH -Destination "${{ github.workspace }}/staging"
-        
-        # Set the Qt bin path in the environment for windeployqt to find its own dependencies
-        $env:PATH = "$QT_BIN_PATH;$env:PATH"
-        
-        # Run windeployqt
-        # It will find your .exe, see what Qt modules it uses,
-        # and copy all required DLLs (Core, Gui, Widgets, plugins, etc.)
-        # into the 'staging' directory.
-        Write-Host "Running windeployqt..."
-        & "$QT_BIN_PATH/windeployqt.exe" --release --no-translations --no-opengl-sw --no-svg --no-system-json --no-virtualkeyboard --no-webengine "${{ github.workspace }}/staging/spatialshot.exe"
-        
-    - name: Create Zip Archive
-      run: 7z a spatialshot-windows.zip ./staging/*
-      
-    - name: Upload Artifact
+        $exe = "${{ github.workspace }}\build\Release\drawview.exe"
+        if (-not (Test-Path $exe)) {
+            Write-Error "Executable not found at $exe"
+            exit 1
+        }
+        Copy-Item $exe -Destination "${{ github.workspace }}\staging" -Force
+
+    - name: Run windeployqt to collect Qt runtime files
+      shell: pwsh
+      run: |
+        $qtBin = "${{ env.OUTPUT_QT_DIR }}/${{ env.QT_VERSION }}/$env:QT_CHOSEN_ARCH/bin"
+        $windeploy = Join-Path $qtBin "windeployqt.exe"
+        if (-not (Test-Path $windeploy)) {
+            Write-Error "windeployqt.exe not found at $windeploy"
+            exit 1
+        }
+
+        # Ensure the Qt bin dir is in PATH so the tool and its helpers function correctly
+        $env:PATH = "$qtBin;$env:PATH"
+
+        Write-Host "Running windeployqt: $windeploy"
+        & $windeploy --release --no-translations --no-opengl-sw --no-svg --no-system-json --no-virtualkeyboard --no-webengine "${{ github.workspace }}\staging\drawview.exe"
+
+    - name: Include MSVC runtime installer (optional, helpful for clean machines)
+      shell: pwsh
+      run: |
+        # Copy vc_redist installer next to staging (optional convenience)
+        $vcCandidates = @(
+          "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC"
+        )
+        foreach ($p in $vcCandidates) {
+            if (Test-Path $p) {
+                Write-Host "Found vc_redist candidate: $p"
+                Get-ChildItem -Path $p -Filter "vc_redist*.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object {
+                    Copy-Item $_.FullName -Destination "${{ github.workspace }}\staging\" -Force
+                    Write-Host "Copied $($_.FullName) to staging"
+                }
+            }
+        }
+
+    - name: Compress staging to zip
+      shell: pwsh
+      run: |
+        $zipFile = "${{ github.workspace }}\drawview-windows.zip"
+        if (Test-Path $zipFile) { Remove-Item $zipFile -Force }
+        Compress-Archive -Path "${{ github.workspace }}\staging\*" -DestinationPath $zipFile -Force
+        Write-Host "Created $zipFile"
+
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: spatialshot-windows-package
-        path: spatialshot-windows.zip
+        name: drawview-windows-package
+        path: drawview-windows.zip
