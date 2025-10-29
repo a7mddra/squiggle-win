@@ -7,10 +7,8 @@ env:
   QT_VERSION: "6.7.0"
 jobs:
   build-qt-windows:
-    name: Build Qt (static) and upload artifact (heavy)
+    name: Build Qt (static) (heavy)
     runs-on: windows-latest
-    outputs:
-      qt-install-dir: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -18,10 +16,9 @@ jobs:
         id: set-qt-dir
         shell: pwsh
         run: |
-          $out = Join-Path $env:TEMP "qt-static-windows"
+          $out = Join-Path $env:GITHUB_WORKSPACE "qt"
           New-Item -ItemType Directory -Path $out -Force | Out-Null
           Write-Host "QT install dir set to: $out"
-          # publish as step output
           "qt-install-dir=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - name: Cache Qt (Windows)
         id: cache-qt
@@ -98,7 +95,6 @@ jobs:
             $content = $content -replace '\s?[^ ]*\.o', ''
             Set-Content $_.FullName -Value $content
           }
-      # Removed the artifact upload step here
   build-and-package:
     name: Build SpatialShot, windeployqt, package, upload
     runs-on: windows-latest
