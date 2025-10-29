@@ -1,13 +1,10 @@
 name: Build Qt + Build & Package SpatialShot (Windows)
-
 on:
   workflow_dispatch:
   push:
     branches: [ "main" ]
-
 env:
   QT_VERSION: "6.7.0"
-
 jobs:
   build-qt-windows:
     name: Build Qt (static) and upload artifact (heavy)
@@ -17,7 +14,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set QT_INSTALL_DIR
         id: set-qt-dir
         shell: pwsh
@@ -27,7 +23,6 @@ jobs:
           Write-Host "QT install dir set to: $out"
           # publish as step output
           "qt-install-dir=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
       - name: Cache Qt (Windows)
         id: cache-qt
         uses: actions/cache@v4
@@ -36,7 +31,6 @@ jobs:
           key: qt-static-windows-${{ env.QT_VERSION }}-${{ runner.os }}-v1
           restore-keys: |
             qt-static-windows-${{ env.QT_VERSION }}-
-
       - name: Install dependencies (Windows)
         if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
         shell: pwsh
@@ -46,14 +40,12 @@ jobs:
           Write-Host "Installing Chocolatey and required packages (StrawberryPerl, ninja, cmake, llvm, git)..."
           iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
           choco install strawberryperl ninja cmake llvm git -y --no-progress
-
       - name: Setup MSVC environment
         if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
           vsversion: 2022
-
       - name: Build static Qt from source (Windows)
         if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
         shell: pwsh
@@ -64,47 +56,37 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Write-Host "QT_VER = $env:QT_VER"
           Write-Host "QT_INSTALL_DIR = $env:QT_INSTALL_DIR"
-
           # create structure
           New-Item -ItemType Directory -Path (Join-Path $env:QT_INSTALL_DIR "src") -Force | Out-Null
           Push-Location (Join-Path $env:QT_INSTALL_DIR "src")
-
           if (-not (Test-Path ".\qt5")) {
             git clone https://code.qt.io/qt/qt5.git
           }
           Set-Location .\qt5
           git fetch --all --tags
           git checkout "v$env:QT_VER"
-
           # init modules (Perl needed)
           perl init-repository --module-subset qtbase,qtshadertools,qtdeclarative,qttools,qtimageformats -f
-
           Pop-Location
           New-Item -ItemType Directory -Path (Join-Path $env:QT_INSTALL_DIR "build") -Force | Out-Null
           Push-Location (Join-Path $env:QT_INSTALL_DIR "build")
-
           $superRepoQtPath = (Join-Path $env:QT_INSTALL_DIR "src\qt5")
           $configure = Join-Path $superRepoQtPath "configure.bat"
           if (-not (Test-Path $configure)) {
               Write-Error "configure.bat not found at $configure. Initialization may have failed."
               exit 1
           }
-
           $prefix = $env:QT_INSTALL_DIR.Replace('/', '\')
           Write-Host "Running configure.bat -- static build, prefix: $prefix"
           & cmd.exe /c "`"$configure`" -static -opensource -confirm-license -no-pch -skip qtwebengine -nomake tests -nomake examples -make libs -cmake-generator Ninja -prefix `"$prefix`""
           if ($LASTEXITCODE -ne 0) { Write-Error "configure.bat failed"; exit $LASTEXITCODE }
-
           Write-Host "Starting build (this will take many minutes/hours)..."
           cmake --build . --parallel
           if ($LASTEXITCODE -ne 0) { Write-Error "cmake --build failed"; exit $LASTEXITCODE }
-
           Write-Host "Installing Qt to prefix..."
           cmake --install . --config Release
           if ($LASTEXITCODE -ne 0) { Write-Error "cmake --install failed"; exit $LASTEXITCODE }
-
           Pop-Location
-
       - name: Clean .prl files (remove absolute build paths and .o file libs)
         if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
         shell: pwsh
@@ -116,13 +98,7 @@ jobs:
             $content = $content -replace '\s?[^ ]*\.o', ''
             Set-Content $_.FullName -Value $content
           }
-
-      - name: Upload Qt install as artifact (so other jobs can use it)
-        uses: actions/upload-artifact@v3
-        with:
-          name: qt-static
-          path: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
-
+      # Removed the artifact upload step here
   build-and-package:
     name: Build SpatialShot, windeployqt, package, upload
     runs-on: windows-latest
@@ -130,25 +106,26 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Enable Long Paths on Windows
+      - name: Set QT_INSTALL_DIR for cache
+        id: set-qt-dir
         shell: pwsh
         run: |
-          git config --system core.longpaths true
-          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType "DWord" -Force
-          
-      - name: Download Qt artifact
-        uses: actions/download-artifact@v3
+          $out = Join-Path $env:GITHUB_WORKSPACE "qt"
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          Write-Host "QT install dir set to: $out"
+          "qt-install-dir=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Restore Qt from cache
+        uses: actions/cache@v4
         with:
-          name: qt-static
-          path: qt
-
+          path: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
+          key: qt-static-windows-${{ env.QT_VERSION }}-${{ runner.os }}-v1
+          restore-keys: |
+            qt-static-windows-${{ env.QT_VERSION }}-
       - name: Show downloaded Qt files (debug)
         shell: pwsh
         run: |
           Write-Host "Listing top-level of ./qt"
           Get-ChildItem -Path ./qt -Force | Select-Object -First 50 | Format-Table Name,Mode,Length
-
       - name: Locate Qt6Config.cmake and set Qt6_DIR
         id: find-qt6
         shell: pwsh
@@ -164,13 +141,11 @@ jobs:
           $qt6dir = $found.DirectoryName
           Write-Host "Found Qt6Config.cmake at: $($found.FullName)"
           "qt6-dir=$qt6dir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
       - name: Setup MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
           vsversion: 2022
-
       - name: Configure CMake (SpatialShot)
         shell: pwsh
         run: |
@@ -180,17 +155,14 @@ jobs:
           Write-Host "Using CMAKE_PREFIX_PATH = $qtRoot"
           $env:CMAKE_PREFIX_PATH = $qtRoot
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DQt6_DIR="$qt6Dir" -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH"
-
       - name: Build SpatialShot
         run: cmake --build build --config Release --parallel
-
       - name: Prepare staging
         shell: pwsh
         run: |
           $staging = "${{ github.workspace }}\staging"
           if (Test-Path $staging) { Remove-Item -Recurse -Force $staging }
           New-Item -ItemType Directory -Path $staging | Out-Null
-
       - name: Copy exe to staging
         shell: pwsh
         run: |
@@ -201,7 +173,6 @@ jobs:
           }
           Copy-Item $exe -Destination "${{ github.workspace }}\staging" -Force
           Write-Host "Copied exe to staging"
-
       - name: Run windeployqt
         shell: pwsh
         run: |
@@ -218,7 +189,6 @@ jobs:
           Write-Host "Using windeployqt at: $windeployPath"
           $env:PATH = "$(Split-Path -Parent $windeployPath);$env:PATH"
           & $windeployPath --release --no-translations --no-opengl-sw --no-svg --no-system-json --no-virtualkeyboard --no-webengine "${{ github.workspace }}\staging\spatialshot.exe"
-
       - name: Zip staging
         shell: pwsh
         run: |
@@ -226,7 +196,6 @@ jobs:
           if (Test-Path $zipFile) { Remove-Item $zipFile -Force }
           Compress-Archive -Path "${{ github.workspace }}\staging\*" -DestinationPath $zipFile -Force
           Write-Host "Created $zipFile"
-
       - name: Upload packaged app artifact
         uses: actions/upload-artifact@v4
         with:
