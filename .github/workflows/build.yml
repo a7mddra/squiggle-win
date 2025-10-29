@@ -1,0 +1,86 @@
+name: Build SpatialShot for Windows
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  # --- CONFIGURE YOUR BUILD ---
+  # Set the Qt version you want to build against
+  QT_VERSION: "6.7.0"
+  # Set the compiler. "msvc2019_64" is the standard for GitHub runners.
+  QT_TARGET_ARCH: "msvc2019_64"
+  # ----------------------------
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up MSVC developer command prompt
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install aqtinstall
+      run: pip install aqtinstall
+
+    - name: Install Qt (using aqt)
+      run: aqt install-qt windows desktop ${{ env.QT_VERSION }} ${{ env.QT_TARGET_ARCH }} --outputdir C:/Qt
+
+    - name: Configure CMake
+      shell: pwsh
+      run: |
+        # Set CMAKE_PREFIX_PATH for find_package(Qt6)
+        $env:CMAKE_PREFIX_PATH="C:/Qt/${{ env.QT_VERSION }}/${{ env.QT_TARGET_ARCH }}"
+        
+        Write-Host "CMAKE_PREFIX_PATH set to $env:CMAKE_PREFIX_PATH"
+        
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+        
+    - name: Build with CMake
+      run: cmake --build build --config Release --parallel
+
+    - name: Prepare package directory
+      run: mkdir staging
+
+    - name: Deploy dependencies with windeployqt
+      shell: pwsh
+      run: |
+        # This is the path to windeployqt
+        $QT_BIN_PATH = "C:/Qt/${{ env.QT_VERSION }}/${{ env.QT_TARGET_ARCH }}/bin"
+        
+        # This is the path to your compiled .exe
+        $EXE_PATH = "${{ github.workspace }}/build/Release/spatialshot.exe"
+        
+        # Copy the .exe to the staging directory
+        Copy-Item $EXE_PATH -Destination "${{ github.workspace }}/staging"
+        
+        # Set the Qt bin path in the environment for windeployqt to find its own dependencies
+        $env:PATH = "$QT_BIN_PATH;$env:PATH"
+        
+        # Run windeployqt
+        # It will find your .exe, see what Qt modules it uses,
+        # and copy all required DLLs (Core, Gui, Widgets, plugins, etc.)
+        # into the 'staging' directory.
+        Write-Host "Running windeployqt..."
+        & "$QT_BIN_PATH/windeployqt.exe" --release --no-translations --no-opengl-sw --no-svg --no-system-json --no-virtualkeyboard --no-webengine "${{ github.workspace }}/staging/spatialshot.exe"
+        
+    - name: Create Zip Archive
+      run: 7z a spatialshot-windows.zip ./staging/*
+      
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: spatialshot-windows-package
+        path: spatialshot-windows.zip
