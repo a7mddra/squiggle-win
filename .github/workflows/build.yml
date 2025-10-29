@@ -126,7 +126,7 @@ jobs:
       - name: Report result
         shell: pwsh
         run: |
-          Write-Host "Qt build job finished. Install path: $(${{ steps.set-qt-dir.outputs.qt-install-dir }})"
+          Write-Host "Qt build job finished. Install path: ${{ steps.set-qt-dir.outputs.qt-install-dir }}"
           Write-Host "Artifact 'qt-static' uploaded."
 
   build-and-package:
