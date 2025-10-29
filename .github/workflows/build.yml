@@ -118,7 +118,7 @@ jobs:
           }
 
       - name: Upload Qt install as artifact (so other jobs can use it)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: qt-static
           path: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
@@ -138,7 +138,7 @@ jobs:
           New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType "DWord" -Force
           
       - name: Download Qt artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: qt-static
           path: qt
