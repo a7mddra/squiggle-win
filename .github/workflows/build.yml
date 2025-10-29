@@ -1,189 +1,236 @@
-name: Build drawview for Windows
+name: Build Qt + Build & Package SpatialShot (Windows)
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ "main" ]
-  pull_request:
     branches: [ "main" ]
 
 env:
   QT_VERSION: "6.7.0"
-  # preferred arch list (order = preference). We'll pick the first available.
-  PREFERRED_ARCHS: "win64_msvc2022_64;win64_msvc2019_64;win64_mingw73_64"
-  OUTPUT_QT_DIR: "C:/Qt"
 
 jobs:
-  build-windows:
+  build-qt-windows:
+    name: Build Qt (static) and upload artifact (heavy)
     runs-on: windows-latest
+    env:
+      QT_INSTALL_DIR_BASE: "${{ runner.temp }}\\qt-static-windows"
+    outputs:
+      qt-install-dir: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up MSVC developer command prompt
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: x64
+      - name: Set QT_INSTALL_DIR
+        id: set-qt-dir
+        shell: pwsh
+        run: |
+          $out = "${{ env.QT_INSTALL_DIR_BASE }}"
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          "qt-install-dir=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "QT install dir set to: $out"
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Cache Qt (Windows)
+        id: cache-qt
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
+          key: qt-static-windows-${{ env.QT_VERSION }}-${{ runner.os }}-v1
+          restore-keys: |
+            qt-static-windows-${{ env.QT_VERSION }}-
 
-    - name: Install required Python tools
-      run: |
-        python -m pip install --upgrade pip
-        pip install --upgrade aqtinstall
+      - name: Install dependencies (Windows)
+        if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
+        shell: pwsh
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+          choco install strawberryperl ninja cmake llvm git -y --no-progress
 
-    - name: Show available Qt architectures (debug)
-      run: |
-        echo "Listing available Qt archives for windows desktop ${QT_VERSION}"
-        python -m aqt list-qt windows desktop --arch ${{ env.QT_VERSION }} | Out-Host
+      - name: Setup MSVC environment
+        if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+          vsversion: 2022
 
-    - name: Choose arch and install Qt (robust)
-      shell: pwsh
-      run: |
-        $qtver = "${{ env.QT_VERSION }}"
-        $outdir = "${{ env.OUTPUT_QT_DIR }}"
-        $preferred = "${{ env.PREFERRED_ARCHS }}".Split(';')
+      - name: Build static Qt from source (Windows)
+        if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
+        shell: pwsh
+        env:
+          QT_VER: ${{ env.QT_VERSION }}
+          QT_INSTALL_DIR: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Host "QT_VER = $env:QT_VER"
+          Write-Host "QT_INSTALL_DIR = $env:QT_INSTALL_DIR"
 
-        Write-Host "Available preferred architectures (in order): $preferred"
-        Write-Host "Querying aqt for available architectures..."
-        $listOutput = python -m aqt list-qt windows desktop --arch $qtver 2>&1 | Out-String
+          # create structure
+          New-Item -ItemType Directory -Path (Join-Path $env:QT_INSTALL_DIR "src") -Force | Out-Null
+          Push-Location (Join-Path $env:QT_INSTALL_DIR "src")
 
-        Write-Host $listOutput
+          if (-not (Test-Path ".\qt5")) {
+            git clone https://code.qt.io/qt/qt5.git
+          }
+          Set-Location .\qt5
+          git fetch --all --tags
+          git checkout "v$env:QT_VER"
 
-        $chosen = $null
-        foreach ($arch in $preferred) {
-            if ($listOutput -match [regex]::Escape($arch)) {
-                $chosen = $arch
-                break
-            }
-        }
+          # init modules (Perl needed)
+          perl init-repository --module-subset qtbase,qtshadertools,qtdeclarative,qttools,qtimageformats -f
 
-        if (-not $chosen) {
-            Write-Host "No preferred arch found in aqt list output. Attempting to pick any available 'win' arch..."
-            # Try to extract something sensible from the output
-            if ($listOutput -match 'win[^\s,]+') {
-                $m = [regex]::Match($listOutput, 'win[^\s,]+')
-                $chosen = $m.Value
-            }
-        }
+          Pop-Location
+          New-Item -ItemType Directory -Path (Join-Path $env:QT_INSTALL_DIR "build") -Force | Out-Null
+          Push-Location (Join-Path $env:QT_INSTALL_DIR "build")
 
-        if (-not $chosen) {
-            Write-Error "Could not determine a Qt arch to install from aqt list. See previous output for available arch strings."
+          $superRepoQtPath = (Join-Path $env:QT_INSTALL_DIR "src\qt5")
+          $configure = Join-Path $superRepoQtPath "configure.bat"
+          if (-not (Test-Path $configure)) {
+              Write-Error "configure.bat not found at $configure. Initialization may have failed."
+              exit 1
+          }
+
+          $prefix = $env:QT_INSTALL_DIR.Replace('/', '\')
+          Write-Host "Running configure.bat -- static build, prefix: $prefix"
+          & cmd.exe /c "`"$configure`" -static -opensource -confirm-license -no-pch -skip qtwebengine -nomake tests -nomake examples -make libs -cmake-generator Ninja -prefix `"$prefix`""
+          if ($LASTEXITCODE -ne 0) { Write-Error "configure.bat failed"; exit $LASTEXITCODE }
+
+          Write-Host "Starting build (this will take many minutes/hours)..."
+          cmake --build . --parallel
+          if ($LASTEXITCODE -ne 0) { Write-Error "cmake --build failed"; exit $LASTEXITCODE }
+
+          Write-Host "Installing Qt to prefix..."
+          cmake --install . --config Release
+          if ($LASTEXITCODE -ne 0) { Write-Error "cmake --install failed"; exit $LASTEXITCODE }
+
+          Pop-Location
+
+      - name: Clean .prl files (remove absolute build paths and .o file libs)
+        if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
+        shell: pwsh
+        working-directory: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
+        run: |
+          Get-ChildItem -Recurse -Filter *.prl | ForEach-Object {
+            $content = Get-Content $_.FullName -Raw
+            $content = $content -replace '^QMAKE_PRL_BUILD_DIR.*\r?\n', ''
+            $content = $content -replace '\s?[^ ]*\.o', ''
+            Set-Content $_.FullName -Value $content
+          }
+
+      - name: Upload Qt install as artifact (so other jobs can use it)
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt-static
+          path: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
+
+      - name: Report result
+        shell: pwsh
+        run: |
+          Write-Host "Qt build job finished. Install path: $(${{ steps.set-qt-dir.outputs.qt-install-dir }})"
+          Write-Host "Artifact 'qt-static' uploaded."
+
+  build-and-package:
+    name: Build SpatialShot, windeployqt, package, upload
+    runs-on: windows-latest
+    needs: [ build-qt-windows ]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Qt artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: qt-static
+          path: qt   # artifact will be extracted under ./qt
+
+      - name: Show downloaded Qt files (debug)
+        shell: pwsh
+        run: |
+          Write-Host "Listing top-level of ./qt"
+          Get-ChildItem -Path ./qt -Force | Select-Object -First 50 | Format-Table Name,Mode,Length
+
+      - name: Locate Qt6Config.cmake and set Qt6_DIR
+        id: find-qt6
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = (Resolve-Path ./qt).Path
+          Write-Host "Searching for Qt6Config.cmake under $root ..."
+          $found = Get-ChildItem -Path $root -Filter "Qt6Config.cmake" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $found) {
+            Write-Error "Qt6Config.cmake not found in downloaded artifact. Check build-qt-windows logs."
             exit 1
-        }
+          }
+          $qt6dir = $found.DirectoryName
+          Write-Host "Found Qt6Config.cmake at: $($found.FullName)"
+          "qt6-dir=$qt6dir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-        Write-Host "Chosen arch: $chosen"
-        Write-Host "Installing Qt $qtver / $chosen into $outdir (this can take several minutes)..."
+      - name: Setup MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+          vsversion: 2022
 
-        python -m aqt install-qt windows desktop $qtver $chosen --outputdir $outdir
+      - name: Configure CMake (SpatialShot)
+        shell: pwsh
+        run: |
+          $qt6Dir = "${{ steps.find-qt6.outputs.qt6-dir }}"
+          $qtRoot = (Resolve-Path ./qt).Path
+          Write-Host "Using Qt6_DIR = $qt6Dir"
+          Write-Host "Using CMAKE_PREFIX_PATH = $qtRoot"
+          $env:CMAKE_PREFIX_PATH = $qtRoot
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DQt6_DIR="$qt6Dir" -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH"
 
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "aqt install-qt failed with exit code $LASTEXITCODE"
-            exit $LASTEXITCODE
-        }
+      - name: Build SpatialShot
+        run: cmake --build build --config Release --parallel
 
-        # Export chosen arch for later steps (GitHub Actions env file)
-        "QT_CHOSEN_ARCH=$chosen" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        "QT_INSTALL_ROOT=$outdir/$qtver/$chosen" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Prepare staging
+        shell: pwsh
+        run: |
+          $staging = "${{ github.workspace }}\staging"
+          if (Test-Path $staging) { Remove-Item -Recurse -Force $staging }
+          New-Item -ItemType Directory -Path $staging | Out-Null
 
-    - name: Verify Qt install and Configure CMake
-      shell: pwsh
-      run: |
-        $qtPrefix = "${{ env.OUTPUT_QT_DIR }}/${{ env.QT_VERSION }}/$env:QT_CHOSEN_ARCH"
-        Write-Host "Using qtPrefix = $qtPrefix"
-
-        # Look for Qt6Config.cmake
-        $configPaths = Get-ChildItem -Path $qtPrefix -Filter "Qt6Config.cmake" -Recurse -ErrorAction SilentlyContinue |
-                       ForEach-Object { $_.Directory.FullName } | Select-Object -Unique
-
-        if (-not $configPaths) {
-            Write-Error "Qt6Config.cmake not found under $qtPrefix. Listing $qtPrefix for diagnosis..."
-            Get-ChildItem -Path $qtPrefix -Force | Out-Host
-            Write-Host ""
-            Write-Host "Common causes: incomplete aqt install (missing qtbase), wrong arch path, or install failed."
-            Write-Host "Try running: python -m aqt list-qt windows desktop --long-modules ${{ env.QT_VERSION }} $env:QT_CHOSEN_ARCH"
+      - name: Copy exe to staging
+        shell: pwsh
+        run: |
+          $exe = "${{ github.workspace }}\build\Release\spatialshot.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Error "Built exe not found at $exe"
             exit 1
-        }
+          }
+          Copy-Item $exe -Destination "${{ github.workspace }}\staging" -Force
+          Write-Host "Copied exe to staging"
 
-        Write-Host "Found Qt6Config.cmake in:"
-        $configPaths | ForEach-Object { Write-Host "  $_" }
-
-        # Prefer a direct Qt6_DIR to be unambiguous
-        $qt6Dir = $configPaths[0]   # e.g. C:/Qt/6.7.0/win64_msvc2019_64/lib/cmake/Qt6
-        Write-Host "Setting Qt6_DIR = $qt6Dir"
-
-        # Set env for subsequent steps
-        "Qt6_DIR=$qt6Dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        $env:CMAKE_PREFIX_PATH = $qtPrefix
-        Write-Host "CMAKE_PREFIX_PATH set to $env:CMAKE_PREFIX_PATH"
-
-        # finally run cmake and pass Qt6_DIR explicitly
-        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DQt6_DIR="$qt6Dir" -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH"
-
-    - name: Build with CMake
-      run: cmake --build build --config Release --parallel
-
-    - name: Prepare staging directory
-      run: |
-        if (Test-Path staging) { Remove-Item -Recurse -Force staging }
-        New-Item -ItemType Directory -Path staging | Out-Null
-
-    - name: Copy executable to staging
-      shell: pwsh
-      run: |
-        $exe = "${{ github.workspace }}\build\Release\drawview.exe"
-        if (-not (Test-Path $exe)) {
-            Write-Error "Executable not found at $exe"
+      - name: Run windeployqt
+        shell: pwsh
+        run: |
+          # Find windeployqt in the downloaded Qt root
+          $qtRoot = (Resolve-Path ./qt).Path
+          $windeployPath = Join-Path $qtRoot "bin\windeployqt.exe"
+          if (-not (Test-Path $windeployPath)) {
+            # Try alternative places (some builds place bin under root\bin)
+            $possible = Get-ChildItem -Path $qtRoot -Filter "windeployqt.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($possible) { $windeployPath = $possible.FullName }
+          }
+          if (-not (Test-Path $windeployPath)) {
+            Write-Error "windeployqt.exe not found under Qt artifact. Cannot deploy runtime."
             exit 1
-        }
-        Copy-Item $exe -Destination "${{ github.workspace }}\staging" -Force
+          }
+          Write-Host "Using windeployqt at: $windeployPath"
+          $env:PATH = "$(Split-Path -Parent $windeployPath);$env:PATH"
+          & $windeployPath --release --no-translations --no-opengl-sw --no-svg --no-system-json --no-virtualkeyboard --no-webengine "${{ github.workspace }}\staging\spatialshot.exe"
 
-    - name: Run windeployqt to collect Qt runtime files
-      shell: pwsh
-      run: |
-        $qtBin = "${{ env.OUTPUT_QT_DIR }}/${{ env.QT_VERSION }}/$env:QT_CHOSEN_ARCH/bin"
-        $windeploy = Join-Path $qtBin "windeployqt.exe"
-        if (-not (Test-Path $windeploy)) {
-            Write-Error "windeployqt.exe not found at $windeploy"
-            exit 1
-        }
+      - name: Zip staging
+        shell: pwsh
+        run: |
+          $zipFile = "${{ github.workspace }}\spatialshot-windows.zip"
+          if (Test-Path $zipFile) { Remove-Item $zipFile -Force }
+          Compress-Archive -Path "${{ github.workspace }}\staging\*" -DestinationPath $zipFile -Force
+          Write-Host "Created $zipFile"
 
-        # Ensure the Qt bin dir is in PATH so the tool and its helpers function correctly
-        $env:PATH = "$qtBin;$env:PATH"
-
-        Write-Host "Running windeployqt: $windeploy"
-        & $windeploy --release --no-translations --no-opengl-sw --no-svg --no-system-json --no-virtualkeyboard --no-webengine "${{ github.workspace }}\staging\drawview.exe"
-
-    - name: Include MSVC runtime installer (optional, helpful for clean machines)
-      shell: pwsh
-      run: |
-        # Copy vc_redist installer next to staging (optional convenience)
-        $vcCandidates = @(
-          "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC",
-          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC"
-        )
-        foreach ($p in $vcCandidates) {
-            if (Test-Path $p) {
-                Write-Host "Found vc_redist candidate: $p"
-                Get-ChildItem -Path $p -Filter "vc_redist*.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object {
-                    Copy-Item $_.FullName -Destination "${{ github.workspace }}\staging\" -Force
-                    Write-Host "Copied $($_.FullName) to staging"
-                }
-            }
-        }
-
-    - name: Compress staging to zip
-      shell: pwsh
-      run: |
-        $zipFile = "${{ github.workspace }}\drawview-windows.zip"
-        if (Test-Path $zipFile) { Remove-Item $zipFile -Force }
-        Compress-Archive -Path "${{ github.workspace }}\staging\*" -DestinationPath $zipFile -Force
-        Write-Host "Created $zipFile"
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: drawview-windows-package
-        path: drawview-windows.zip
+      - name: Upload packaged app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spatialshot-windows-package
+          path: spatialshot-windows.zip
