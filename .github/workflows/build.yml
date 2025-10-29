@@ -88,15 +88,39 @@ jobs:
         "QT_CHOSEN_ARCH=$chosen" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "QT_INSTALL_ROOT=$outdir/$qtver/$chosen" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-    - name: Configure CMake
+    - name: Verify Qt install and Configure CMake
       shell: pwsh
       run: |
-        # Use the chosen Qt install path
         $qtPrefix = "${{ env.OUTPUT_QT_DIR }}/${{ env.QT_VERSION }}/$env:QT_CHOSEN_ARCH"
-        Write-Host "Using CMAKE_PREFIX_PATH = $qtPrefix"
-        $env:CMAKE_PREFIX_PATH = $qtPrefix
+        Write-Host "Using qtPrefix = $qtPrefix"
 
-        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH"
+        # Look for Qt6Config.cmake
+        $configPaths = Get-ChildItem -Path $qtPrefix -Filter "Qt6Config.cmake" -Recurse -ErrorAction SilentlyContinue |
+                       ForEach-Object { $_.Directory.FullName } | Select-Object -Unique
+
+        if (-not $configPaths) {
+            Write-Error "Qt6Config.cmake not found under $qtPrefix. Listing $qtPrefix for diagnosis..."
+            Get-ChildItem -Path $qtPrefix -Force | Out-Host
+            Write-Host ""
+            Write-Host "Common causes: incomplete aqt install (missing qtbase), wrong arch path, or install failed."
+            Write-Host "Try running: python -m aqt list-qt windows desktop --long-modules ${{ env.QT_VERSION }} $env:QT_CHOSEN_ARCH"
+            exit 1
+        }
+
+        Write-Host "Found Qt6Config.cmake in:"
+        $configPaths | ForEach-Object { Write-Host "  $_" }
+
+        # Prefer a direct Qt6_DIR to be unambiguous
+        $qt6Dir = $configPaths[0]   # e.g. C:/Qt/6.7.0/win64_msvc2019_64/lib/cmake/Qt6
+        Write-Host "Setting Qt6_DIR = $qt6Dir"
+
+        # Set env for subsequent steps
+        "Qt6_DIR=$qt6Dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        $env:CMAKE_PREFIX_PATH = $qtPrefix
+        Write-Host "CMAKE_PREFIX_PATH set to $env:CMAKE_PREFIX_PATH"
+
+        # finally run cmake and pass Qt6_DIR explicitly
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DQt6_DIR="$qt6Dir" -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH"
 
     - name: Build with CMake
       run: cmake --build build --config Release --parallel
