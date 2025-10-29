@@ -9,9 +9,9 @@ on:
 env:
   # --- CONFIGURE YOUR BUILD ---
   # Set the Qt version you want to build against
-  QT_VERSION: "6.7.0"
-  # Set the compiler. "msvc2019_64" is the standard for GitHub runners.
-  QT_TARGET_ARCH: "msvc2019_64"
+  QT_VERSION: "6.7.3"
+  # Set the compiler. "win64_msvc2022_64" aligns with Visual Studio 2022 on GitHub runners.
+  QT_TARGET_ARCH: "win64_msvc2022_64"
   # ----------------------------
 
 jobs:
