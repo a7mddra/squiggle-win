@@ -173,22 +173,6 @@ jobs:
           }
           Copy-Item $exe -Destination "${{ github.workspace }}\staging" -Force
           Write-Host "Copied exe to staging"
-      - name: Run windeployqt
-        shell: pwsh
-        run: |
-          $qtRoot = (Resolve-Path ./qt).Path
-          $windeployPath = Join-Path $qtRoot "bin\windeployqt.exe"
-          if (-not (Test-Path $windeployPath)) {
-            $possible = Get-ChildItem -Path $qtRoot -Filter "windeployqt.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($possible) { $windeployPath = $possible.FullName }
-          }
-          if (-not (Test-Path $windeployPath)) {
-            Write-Error "windeployqt.exe not found under Qt artifact. Cannot deploy runtime."
-            exit 1
-          }
-          Write-Host "Using windeployqt at: $windeployPath"
-          $env:PATH = "$(Split-Path -Parent $windeployPath);$env:PATH"
-          & $windeployPath --release --no-translations --no-opengl-sw "${{ github.workspace }}\staging\spatialshot.exe"
       - name: Zip staging
         shell: pwsh
         run: |
