@@ -35,6 +35,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
    
     target_link_libraries(drawview PRIVATE
         Qt6::QWindowsIntegrationPlugin
+        Qt6::QWindowsVistaStylePlugin
     )
    
 endif()
