@@ -84,6 +84,13 @@ jobs:
           cmake --install . --config Release
           if ($LASTEXITCODE -ne 0) { Write-Error "cmake --install failed"; exit $LASTEXITCODE }
           Pop-Location
+      - name: Clean up build and src directories
+        if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
+        shell: pwsh
+        working-directory: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
+        run: |
+          if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
+          if (Test-Path "src") { Remove-Item -Recurse -Force "src" }
       - name: Clean .prl files (remove absolute build paths and .o file libs)
         if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
         shell: pwsh
@@ -122,20 +129,17 @@ jobs:
         run: |
           Write-Host "Listing top-level of ./qt"
           Get-ChildItem -Path ./qt -Force | Select-Object -First 50 | Format-Table Name,Mode,Length
-      - name: Locate Qt6Config.cmake and set Qt6_DIR
-        id: find-qt6
+      - name: Set Qt6_DIR
+        id: set-qt6
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $root = (Resolve-Path ./qt).Path
-          Write-Host "Searching for Qt6Config.cmake under $root ..."
-          $found = Get-ChildItem -Path $root -Filter "Qt6Config.cmake" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $found) {
-            Write-Error "Qt6Config.cmake not found in downloaded artifact. Check build-qt-windows logs."
+          $qtRoot = (Resolve-Path ./qt).Path
+          $qt6dir = Join-Path $qtRoot "lib\cmake\Qt6"
+          if (-not (Test-Path (Join-Path $qt6dir "Qt6Config.cmake"))) {
+            Write-Error "Qt6Config.cmake not found in installed path: $qt6dir"
             exit 1
           }
-          $qt6dir = $found.DirectoryName
-          Write-Host "Found Qt6Config.cmake at: $($found.FullName)"
+          Write-Host "Using Qt6_DIR: $qt6dir"
           "qt6-dir=$qt6dir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - name: Setup MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
@@ -145,7 +149,7 @@ jobs:
       - name: Configure CMake (SpatialShot)
         shell: pwsh
         run: |
-          $qt6Dir = "${{ steps.find-qt6.outputs.qt6-dir }}"
+          $qt6Dir = "${{ steps.set-qt6.outputs.qt6-dir }}"
           $qtRoot = (Resolve-Path ./qt).Path
           Write-Host "Using Qt6_DIR = $qt6Dir"
           Write-Host "Using CMAKE_PREFIX_PATH = $qtRoot"
