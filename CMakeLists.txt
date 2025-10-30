@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SpatialShot VERSION 1.0.0 LANGUAGES CXX)
+project(drawview VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,37 +8,46 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-# This will find the Qt installation from CMAKE_PREFIX_PATH
-# (which we set in the build.yml)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
-add_executable(spatialshot
+add_executable(drawview
     WIN32
     src/main.cpp
     src/Window.cpp
     src/Window.h
 )
 
-target_link_libraries(spatialshot PRIVATE
+target_link_libraries(drawview PRIVATE
     Qt::Core
     Qt::Gui
     Qt::Widgets
-    dwmapi # For your DWMWA_TRANSITIONS_FORCEDISABLED
 )
 
-target_include_directories(spatialshot PRIVATE
+target_include_directories(drawview PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-# Install step for windeployqt to find the binary easily
-# (This isn't strictly needed for the YAML above, but it's good practice)
-install(TARGETS spatialshot
+install(TARGETS drawview
     RUNTIME DESTINATION bin
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set_target_properties(spatialshot PROPERTIES
+    set_target_properties(drawview PROPERTIES
         VERSION ${PROJECT_VERSION}
         DESCRIPTION "A cross-platform screenshot utility."
     )
+    
+    target_link_libraries(drawview PRIVATE dwmapi)
+    
+    target_compile_definitions(drawview PRIVATE QT_STATIC_PLUGINS)
+    
+    target_link_libraries(drawview PRIVATE
+        Qt6::QWindowsIntegrationPlugin
+        Qt6::QJpegPlugin
+        Qt6::QSvgPlugin
+        Qt6::QGifPlugin
+        Qt6::QTiffPlugin
+        Qt6::QWebpPlugin
+    )
+    
 endif()

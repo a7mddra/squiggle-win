@@ -24,6 +24,16 @@
 #include <QFileInfo>
 #include <algorithm>
 
+#include <QtPlugin>
+#ifdef Q_OS_WIN
+    Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin)
+    Q_IMPORT_PLUGIN(QJpegPlugin)
+    Q_IMPORT_PLUGIN(QSvgPlugin)
+    Q_IMPORT_PLUGIN(QGifPlugin)
+    Q_IMPORT_PLUGIN(QTiffPlugin)
+    Q_IMPORT_PLUGIN(QWebpPlugin)
+#endif
+
 int main(int argc, char *argv[]) {
     
 #ifdef Q_OS_LINUX
@@ -31,6 +41,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     QApplication app(argc, argv);
+    
     app.setApplicationName("spatialshot");
     app.setOrganizationName("spatialshot"); 
     app.setApplicationVersion("1.0.0");
