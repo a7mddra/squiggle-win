@@ -1,85 +1,97 @@
-name: Build Qt Dynamic + Build & Package drawview (Windows)
-
+name: Build & Package drawview (Windows Dynamic Portable)
 on:
   workflow_dispatch:
   push:
     branches: [ "main" ]
-
 env:
   QT_VERSION: "6.7.0"
-
 jobs:
   build-and-package:
-    name: Build drawview dynamically, deploy with windeployqt, package, upload
+    name: Install Qt Dynamic, Build, windeployqt, Package, Upload
     runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install dependencies (CMake, Ninja)
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install aqtinstall
+        run: python -m pip install aqtinstall
+      - name: Install Qt Dynamic (MSVC)
+        shell: pwsh
+        run: |
+          $qtDir = Join-Path $env:GITHUB_WORKSPACE "qt"
+          New-Item -ItemType Directory -Path $qtDir -Force | Out-Null
+          aqt install-qt --outputdir $qtDir windows desktop ${{ env.QT_VERSION }} win64_msvc2019_64 -m qtbase
+          "qt-install-dir=$qtDir\${{ env.QT_VERSION }}\win64_msvc2019_64" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        id: install-qt
+      - name: "Install dependencies (Chocolatey: cmake, etc.)"
         shell: pwsh
         run: |
           Set-ExecutionPolicy Bypass -Scope Process -Force
           [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
           iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-          choco install cmake ninja -y --no-progress
-
-      - name: Setup MSVC 2019 environment (matches Qt 6.7)
+          choco install cmake -y --no-progress
+      - name: Setup MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-          vsversion: 2019
-
-      - name: Install Qt 6.7.0 (dynamic)
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: ${{ env.QT_VERSION }}
-          host: windows
-          target: desktop
-          cache: true
-          set-env: true
-
-      - name: Configure CMake (drawview)
+          vsversion: 2022
+      - name: Set Qt Environment Variables
         shell: pwsh
         run: |
-          $qtRoot = $env:QT_ROOT_DIR
-          $qt6Dir = Join-Path $qtRoot "lib/cmake/Qt6"
-          Write-Host "QT_ROOT_DIR = $qtRoot"
-          Write-Host "Qt6_DIR = $qt6Dir"
-          if (-not (Test-Path $qt6Dir)) { Write-Error "Qt6_DIR not found"; exit 1 }
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DQt6_DIR="$qt6Dir"
-
+          $qtRoot = "${{ steps.install-qt.outputs.qt-install-dir }}"
+          $qtBin = Join-Path $qtRoot "bin"
+          $env:Path = "$qtBin;$env:Path"
+          $env:QT_PLUGIN_PATH = Join-Path $qtRoot "plugins"
+          $env:QMAKE = Join-Path $qtBin "qmake.exe"
+          $env:CMAKE_PREFIX_PATH = $qtRoot
+          $qtCmakeDir = Join-Path $qtRoot "lib\cmake\Qt6"
+          "qt6-dir=$qtCmakeDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        id: set-qt-env
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          $qt6Dir = "${{ steps.set-qt-env.outputs.qt6-dir }}"
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DQt6_DIR="$qt6Dir" -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH"
       - name: Build drawview
         run: cmake --build build --config Release --parallel
-
-      - name: Deploy with windeployqt
+      - name: Prepare staging
         shell: pwsh
         run: |
-          $qtRoot = $env:QT_ROOT_DIR
-          $qtBin = Join-Path $qtRoot "bin"
+          $staging = "${{ github.workspace }}\staging"
+          if (Test-Path $staging) { Remove-Item -Recurse -Force $staging }
+          New-Item -ItemType Directory -Path $staging | Out-Null
+      - name: Copy exe to staging
+        shell: pwsh
+        run: |
+          $exe = "${{ github.workspace }}\build\Release\drawview.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Error "Built exe not found at $exe"
+            exit 1
+          }
+          Copy-Item $exe -Destination "${{ github.workspace }}\staging" -Force
+          Write-Host "Copied exe to staging"
+      - name: Run windeployqt to bundle DLLs and plugins
+        shell: pwsh
+        run: |
+          $qtBin = "${{ steps.install-qt.outputs.qt-install-dir }}\bin"
           $windeployqt = Join-Path $qtBin "windeployqt.exe"
-          $exePath = "${{ github.workspace }}\build\Release\drawview.exe"
-          $deployDir = "${{ github.workspace }}\deploy"
-          if (Test-Path $deployDir) { Remove-Item -Recurse -Force $deployDir }
-          New-Item -ItemType Directory -Path $deployDir | Out-Null
-          if (-not (Test-Path $exePath)) { Write-Error "Built exe not found at $exePath"; exit 1 }
-          if (-not (Test-Path $windeployqt)) { Write-Error "windeployqt not found at $windeployqt"; exit 1 }
-          Write-Host "Running windeployqt from $windeployqt on $exePath"
-          & $windeployqt --dir "$deployDir" --release --no-translations --no-opengl-sw --no-angle-d3d11 "$exePath"
+          $staging = "${{ github.workspace }}\staging"
+          $exe = Join-Path $staging "drawview.exe"
+          & $windeployqt --dir $staging --release --no-translations --no-svg --no-opengl-sw --no-system-d3d-compiler --no-virtualkeyboard --no-quick-import --no-angle $exe
           if ($LASTEXITCODE -ne 0) { Write-Error "windeployqt failed"; exit $LASTEXITCODE }
-          Write-Host "Deployment complete. Contents of deploy:"
-          Get-ChildItem -Path $deployDir -Recurse | Format-Table Name, Length
-
-      - name: Zip deployment folder
+          Write-Host "windeployqt bundled DLLs/plugins to staging"
+      - name: Zip staging
         shell: pwsh
         run: |
-          $zipFile = "${{ github.workspace }}\drawview-windows-dynamic.zip"
+          $zipFile = "${{ github.workspace }}\drawview-windows.zip"
           if (Test-Path $zipFile) { Remove-Item $zipFile -Force }
-          Compress-Archive -Path "${{ github.workspace }}\deploy\*" -DestinationPath $zipFile -Force
-          Write-Host "Created portable ZIP: $zipFile (dynamic build with bundled DLLs/plugins)"
-
+          Compress-Archive -Path "${{ github.workspace }}\staging\*" -DestinationPath $zipFile -Force
+          Write-Host "Created $zipFile"
       - name: Upload packaged app artifact
         uses: actions/upload-artifact@v4
         with:
-          name: drawview-windows-dynamic-package
-          path: drawview-windows-dynamic.zip
+          name: drawview-windows-package
+          path: drawview-windows.zip
