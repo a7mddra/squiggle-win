@@ -188,7 +188,7 @@ jobs:
           }
           Write-Host "Using windeployqt at: $windeployPath"
           $env:PATH = "$(Split-Path -Parent $windeployPath);$env:PATH"
-          & $windeployPath --release --no-translations --no-opengl-sw --no-svg --no-system-json --no-virtualkeyboard --no-webengine "${{ github.workspace }}\staging\spatialshot.exe"
+          & $windeployPath --release --no-translations --no-opengl-sw "${{ github.workspace }}\staging\spatialshot.exe"
       - name: Zip staging
         shell: pwsh
         run: |
