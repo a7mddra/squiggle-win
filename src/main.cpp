@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2025 a7mddra-spatialshot
+ * Copyright (C) 2025  a7mddra-spatialshot
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -8,12 +8,13 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **/
+
 #include "Window.h"
 #include <QApplication>
 #include <QScreen>
@@ -22,16 +23,17 @@
 #include <QStandardPaths>
 #include <QFileInfo>
 #include <algorithm>
+#include <QtPlugin>
 #ifdef Q_OS_WIN
-    // No static plugin import needed for dynamic build
+    Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin)
 #endif
 int main(int argc, char *argv[]) {
-  
+   qCritical() << "hi.";
 #ifdef Q_OS_LINUX
     qputenv("QT_QPA_PLATFORM", "xcb");
 #endif
     QApplication app(argc, argv);
-  
+   
     app.setApplicationName("drawview");
     app.setOrganizationName("spatialshot");
     app.setApplicationVersion("1.0.0");
@@ -46,7 +48,7 @@ int main(int argc, char *argv[]) {
         qCritical() << "FATAL: Could not determine standard cache location.";
         return 1;
     }
-  
+   
     tmpPath = QDir(cacheBase).filePath("spatialshot/tmp");
     QDir tmpDir(tmpPath);
     if (!tmpDir.exists()) {
@@ -85,9 +87,9 @@ int main(int argc, char *argv[]) {
             continue;
         }
         qDebug() << "Creating window for monitor" << currentMonitorNum << "(Qt Index" << i << ") with image" << imagePath;
-      
+       
         MainWindow* win = new MainWindow(currentMonitorNum, imagePath, tmpPath, screen);
-      
+       
         windows.append(win);
         win->show();
     }

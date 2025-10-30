@@ -28,7 +28,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         VERSION ${PROJECT_VERSION}
         DESCRIPTION "A cross-platform screenshot utility."
     )
-  
+   
     target_link_libraries(drawview PRIVATE dwmapi)
-  
+   
+    target_compile_definitions(drawview PRIVATE QT_STATIC_PLUGINS)
+   
+    target_link_libraries(drawview PRIVATE
+        Qt6::QWindowsIntegrationPlugin
+    )
+   
 endif()
