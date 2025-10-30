@@ -173,26 +173,6 @@ jobs:
           }
           Copy-Item $exe -Destination "${{ github.workspace }}\staging" -Force
           Write-Host "Copied exe to staging"
-
-      - name: Deploy Qt Plugins (windeployqt)
-        shell: pwsh
-        run: |
-          $qtBin = (Resolve-Path ./qt/bin).Path
-          $env:PATH = "$qtBin;$env:PATH" # Add qt/bin to the PATH
-          
-          $stagingDir = "${{ github.workspace }}\staging"
-          $exePath = Join-Path $stagingDir "spatialshot.exe"
-          
-          Write-Host "Running windeployqt on $exePath"
-          windeployqt $exePath
-          
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "windeployqt failed"
-            exit $LASTEXITCODE
-          }
-          Write-Host "windeployqt finished. Staging dir contents:"
-          Get-ChildItem -Path $stagingDir -Recurse
-
       - name: Zip staging
         shell: pwsh
         run: |
