@@ -1,4 +1,4 @@
-name: Build Qt + Build & Package SpatialShot (Windows)
+name: Build Qt + Build & Package drawview (Windows)
 on:
   workflow_dispatch:
   push:
@@ -103,7 +103,7 @@ jobs:
             Set-Content $_.FullName -Value $content
           }
   build-and-package:
-    name: Build SpatialShot, windeployqt, package, upload
+    name: Build drawview, windeployqt, package, upload
     runs-on: windows-latest
     needs: [ build-qt-windows ]
     steps:
@@ -146,7 +146,7 @@ jobs:
         with:
           arch: x64
           vsversion: 2022
-      - name: Configure CMake (SpatialShot)
+      - name: Configure CMake (drawview)
         shell: pwsh
         run: |
           $qt6Dir = "${{ steps.set-qt6.outputs.qt6-dir }}"
@@ -155,7 +155,7 @@ jobs:
           Write-Host "Using CMAKE_PREFIX_PATH = $qtRoot"
           $env:CMAKE_PREFIX_PATH = $qtRoot
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DQt6_DIR="$qt6Dir" -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH"
-      - name: Build SpatialShot
+      - name: Build drawview
         run: cmake --build build --config Release --parallel
       - name: Prepare staging
         shell: pwsh
@@ -166,7 +166,7 @@ jobs:
       - name: Copy exe to staging
         shell: pwsh
         run: |
-          $exe = "${{ github.workspace }}\build\Release\spatialshot.exe"
+          $exe = "${{ github.workspace }}\build\Release\drawview.exe"
           if (-not (Test-Path $exe)) {
             Write-Error "Built exe not found at $exe"
             exit 1
@@ -176,12 +176,12 @@ jobs:
       - name: Zip staging
         shell: pwsh
         run: |
-          $zipFile = "${{ github.workspace }}\spatialshot-windows.zip"
+          $zipFile = "${{ github.workspace }}\drawview-windows.zip"
           if (Test-Path $zipFile) { Remove-Item $zipFile -Force }
           Compress-Archive -Path "${{ github.workspace }}\staging\*" -DestinationPath $zipFile -Force
           Write-Host "Created $zipFile"
       - name: Upload packaged app artifact
         uses: actions/upload-artifact@v4
         with:
-          name: spatialshot-windows-package
-          path: spatialshot-windows.zip
+          name: drawview-windows-package
+          path: drawview-windows.zip
