@@ -25,7 +25,6 @@
 #include <QtPlugin>
 #ifdef Q_OS_WIN
     Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin)
-    Q_IMPORT_PLUGIN(QWindowsVistaStylePlugin)
 #endif
 int main(int argc, char *argv[]) {
    
