@@ -63,7 +63,7 @@ jobs:
           git fetch --all --tags
           git checkout "v$env:QT_VER"
           # init modules (Perl needed)
-          perl init-repository --module-subset qtbase,qtshadertools,qtdeclarative,qttools,qtimageformats -f
+          perl init-repository --module-subset qtbase -f
           Pop-Location
           New-Item -ItemType Directory -Path (Join-Path $env:QT_INSTALL_DIR "build") -Force | Out-Null
           Push-Location (Join-Path $env:QT_INSTALL_DIR "build")
