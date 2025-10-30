@@ -14,9 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
 **/
-
 #include "Window.h"
-
 #include <QApplication>
 #include <QScreen>
 #include <QDir>
@@ -24,18 +22,23 @@
 #include <QStandardPaths>
 #include <QFileInfo>
 #include <algorithm>
+// #include <QtPlugin> // No longer needed for dynamic builds
 
+// Static plugin imports are removed
+// #ifdef Q_OS_WIN
+//     Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin)
+// #endif
+
+int main(int argc, char *argv[]) {
+   
 #ifdef Q_OS_LINUX
     qputenv("QT_QPA_PLATFORM", "xcb");
 #endif
-
-int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
    
     app.setApplicationName("drawview");
     app.setOrganizationName("spatialshot");
     app.setApplicationVersion("1.0.0");
-
     QString tmpPath;
     QString cacheBase;
 #ifdef Q_OS_WIN
@@ -43,7 +46,6 @@ int main(int argc, char *argv[]) {
 #else
     cacheBase = QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation);
 #endif
-
     if (cacheBase.isEmpty()) {
         qCritical() << "FATAL: Could not determine standard cache location.";
         return 1;
@@ -58,14 +60,11 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     }
-
     QList<QScreen*> screens = QGuiApplication::screens();
     std::sort(screens.begin(), screens.end(), [](QScreen* a, QScreen* b) {
         return a->name() < b->name();
     });
-
     QScreen* primaryScreen = QGuiApplication::primaryScreen();
-
     qDebug() << "Spatialshot started. Using tmp path:" << tmpPath;
     qDebug() << "Available displays:";
     for (int i = 0; i < screens.size(); ++i) {
@@ -80,18 +79,15 @@ int main(int argc, char *argv[]) {
                     .arg(screen->geometry().y())
                     .arg(screen == primaryScreen);
     }
-
     QList<MainWindow*> windows;
     for (int i = 0; i < screens.size(); ++i) {
         QScreen* screen = screens[i];
         int currentMonitorNum = i + 1;
         QString imagePath = QDir(tmpPath).filePath(QString("%1.png").arg(currentMonitorNum));
-
         if (!QFileInfo::exists(imagePath)) {
             qWarning() << "Screenshot PNG not found for monitor" << currentMonitorNum << ":" << imagePath;
             continue;
         }
-
         qDebug() << "Creating window for monitor" << currentMonitorNum << "(Qt Index" << i << ") with image" << imagePath;
        
         MainWindow* win = new MainWindow(currentMonitorNum, imagePath, tmpPath, screen);
@@ -99,12 +95,10 @@ int main(int argc, char *argv[]) {
         windows.append(win);
         win->show();
     }
-
     if (windows.isEmpty()) {
         qCritical() << "FATAL: Could not create any windows. No valid monitors or PNGs found.";
         return 1;
     }
-
     qDebug() << "Entering Qt event loop...";
     int result = app.exec();
     qDebug() << "Exiting Qt event loop with code" << result;
