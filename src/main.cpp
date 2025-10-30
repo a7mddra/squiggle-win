@@ -22,17 +22,16 @@
 #include <QStandardPaths>
 #include <QFileInfo>
 #include <algorithm>
-#include <QtPlugin>
 #ifdef Q_OS_WIN
-    Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin)
+    // No static plugin import needed for dynamic build
 #endif
 int main(int argc, char *argv[]) {
-   
+  
 #ifdef Q_OS_LINUX
     qputenv("QT_QPA_PLATFORM", "xcb");
 #endif
     QApplication app(argc, argv);
-   
+  
     app.setApplicationName("drawview");
     app.setOrganizationName("spatialshot");
     app.setApplicationVersion("1.0.0");
@@ -47,7 +46,7 @@ int main(int argc, char *argv[]) {
         qCritical() << "FATAL: Could not determine standard cache location.";
         return 1;
     }
-   
+  
     tmpPath = QDir(cacheBase).filePath("spatialshot/tmp");
     QDir tmpDir(tmpPath);
     if (!tmpDir.exists()) {
@@ -86,9 +85,9 @@ int main(int argc, char *argv[]) {
             continue;
         }
         qDebug() << "Creating window for monitor" << currentMonitorNum << "(Qt Index" << i << ") with image" << imagePath;
-       
+      
         MainWindow* win = new MainWindow(currentMonitorNum, imagePath, tmpPath, screen);
-       
+      
         windows.append(win);
         win->show();
     }

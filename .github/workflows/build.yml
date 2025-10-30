@@ -1,4 +1,4 @@
-name: Build Qt + Build & Package drawview (Windows)
+name: Build & Package drawview (Windows Dynamic Portable)
 on:
   workflow_dispatch:
   push:
@@ -6,154 +6,54 @@ on:
 env:
   QT_VERSION: "6.7.0"
 jobs:
-  build-qt-windows:
-    name: Build Qt (static) (heavy)
+  build-and-package:
+    name: Install Qt Dynamic, Build, windeployqt, Package, Upload
     runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Set QT_INSTALL_DIR
-        id: set-qt-dir
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install aqtinstall
+        run: python -m pip install aqtinstall
+      - name: Install Qt Dynamic (MSVC)
         shell: pwsh
         run: |
-          $out = Join-Path $env:GITHUB_WORKSPACE "qt"
-          New-Item -ItemType Directory -Path $out -Force | Out-Null
-          Write-Host "QT install dir set to: $out"
-          "qt-install-dir=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-      - name: Cache Qt (Windows)
-        id: cache-qt
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
-          key: qt-static-windows-${{ env.QT_VERSION }}-${{ runner.os }}-v1
-          restore-keys: |
-            qt-static-windows-${{ env.QT_VERSION }}-
-      - name: Install dependencies (Windows)
-        if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
+          $qtDir = Join-Path $env:GITHUB_WORKSPACE "qt"
+          New-Item -ItemType Directory -Path $qtDir -Force | Out-Null
+          aqt install-qt --outputdir $qtDir windows desktop ${{ env.QT_VERSION }} win64_msvc2019_64 -m qtbase
+          "qt-install-dir=$qtDir\${{ env.QT_VERSION }}\win64_msvc2019_64" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        id: install-qt
+      - name: Install dependencies (Chocolatey: cmake, etc.)
         shell: pwsh
         run: |
           Set-ExecutionPolicy Bypass -Scope Process -Force
           [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-          Write-Host "Installing Chocolatey and required packages (StrawberryPerl, ninja, cmake, llvm, git)..."
           iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-          choco install strawberryperl ninja cmake llvm git -y --no-progress
-      - name: Setup MSVC environment
-        if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-          vsversion: 2022
-      - name: Build static Qt from source (Windows)
-        if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
-        shell: pwsh
-        env:
-          QT_VER: ${{ env.QT_VERSION }}
-          QT_INSTALL_DIR: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          Write-Host "QT_VER = $env:QT_VER"
-          Write-Host "QT_INSTALL_DIR = $env:QT_INSTALL_DIR"
-          # create structure
-          New-Item -ItemType Directory -Path (Join-Path $env:QT_INSTALL_DIR "src") -Force | Out-Null
-          Push-Location (Join-Path $env:QT_INSTALL_DIR "src")
-          if (-not (Test-Path ".\qt5")) {
-            git clone https://code.qt.io/qt/qt5.git
-          }
-          Set-Location .\qt5
-          git fetch --all --tags
-          git checkout "v$env:QT_VER"
-          # init modules (Perl needed)
-          perl init-repository --module-subset qtbase -f
-          Pop-Location
-          New-Item -ItemType Directory -Path (Join-Path $env:QT_INSTALL_DIR "build") -Force | Out-Null
-          Push-Location (Join-Path $env:QT_INSTALL_DIR "build")
-          $superRepoQtPath = (Join-Path $env:QT_INSTALL_DIR "src\qt5")
-          $configure = Join-Path $superRepoQtPath "configure.bat"
-          if (-not (Test-Path $configure)) {
-              Write-Error "configure.bat not found at $configure. Initialization may have failed."
-              exit 1
-          }
-          $prefix = $env:QT_INSTALL_DIR.Replace('/', '\')
-          Write-Host "Running configure.bat -- static build, prefix: $prefix"
-          & cmd.exe /c "`"$configure`" -static -opensource -confirm-license -no-pch -skip qtwebengine -nomake tests -nomake examples -make libs -cmake-generator Ninja -prefix `"$prefix`""
-          if ($LASTEXITCODE -ne 0) { Write-Error "configure.bat failed"; exit $LASTEXITCODE }
-          Write-Host "Starting build (this will take many minutes/hours)..."
-          cmake --build . --parallel
-          if ($LASTEXITCODE -ne 0) { Write-Error "cmake --build failed"; exit $LASTEXITCODE }
-          Write-Host "Installing Qt to prefix..."
-          cmake --install . --config Release
-          if ($LASTEXITCODE -ne 0) { Write-Error "cmake --install failed"; exit $LASTEXITCODE }
-          Pop-Location
-      - name: Clean up build and src directories
-        if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
-        shell: pwsh
-        working-directory: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
-        run: |
-          if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
-          if (Test-Path "src") { Remove-Item -Recurse -Force "src" }
-      - name: Clean .prl files (remove absolute build paths and .o file libs)
-        if: ${{ steps.cache-qt.outputs.cache-hit != 'true' }}
-        shell: pwsh
-        working-directory: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
-        run: |
-          Get-ChildItem -Recurse -Filter *.prl | ForEach-Object {
-            $content = Get-Content $_.FullName -Raw
-            $content = $content -replace '^QMAKE_PRL_BUILD_DIR.*\r?\n', ''
-            $content = $content -replace '\s?[^ ]*\.o', ''
-            Set-Content $_.FullName -Value $content
-          }
-  build-and-package:
-    name: Build drawview, windeployqt, package, upload
-    runs-on: windows-latest
-    needs: [ build-qt-windows ]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Set QT_INSTALL_DIR for cache
-        id: set-qt-dir
-        shell: pwsh
-        run: |
-          $out = Join-Path $env:GITHUB_WORKSPACE "qt"
-          New-Item -ItemType Directory -Path $out -Force | Out-Null
-          Write-Host "QT install dir set to: $out"
-          "qt-install-dir=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-      - name: Restore Qt from cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.set-qt-dir.outputs.qt-install-dir }}
-          key: qt-static-windows-${{ env.QT_VERSION }}-${{ runner.os }}-v1
-          restore-keys: |
-            qt-static-windows-${{ env.QT_VERSION }}-
-      - name: Show downloaded Qt files (debug)
-        shell: pwsh
-        run: |
-          Write-Host "Listing top-level of ./qt"
-          Get-ChildItem -Path ./qt -Force | Select-Object -First 50 | Format-Table Name,Mode,Length
-      - name: Set Qt6_DIR
-        id: set-qt6
-        shell: pwsh
-        run: |
-          $qtRoot = (Resolve-Path ./qt).Path
-          $qt6dir = Join-Path $qtRoot "lib\cmake\Qt6"
-          if (-not (Test-Path (Join-Path $qt6dir "Qt6Config.cmake"))) {
-            Write-Error "Qt6Config.cmake not found in installed path: $qt6dir"
-            exit 1
-          }
-          Write-Host "Using Qt6_DIR: $qt6dir"
-          "qt6-dir=$qt6dir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          choco install cmake -y --no-progress
       - name: Setup MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
           vsversion: 2022
-      - name: Configure CMake (drawview)
+      - name: Set Qt Environment Variables
         shell: pwsh
         run: |
-          $qt6Dir = "${{ steps.set-qt6.outputs.qt6-dir }}"
-          $qtRoot = (Resolve-Path ./qt).Path
-          Write-Host "Using Qt6_DIR = $qt6Dir"
-          Write-Host "Using CMAKE_PREFIX_PATH = $qtRoot"
+          $qtRoot = "${{ steps.install-qt.outputs.qt-install-dir }}"
+          $qtBin = Join-Path $qtRoot "bin"
+          $env:Path = "$qtBin;$env:Path"
+          $env:QT_PLUGIN_PATH = Join-Path $qtRoot "plugins"
+          $env:QMAKE = Join-Path $qtBin "qmake.exe"
           $env:CMAKE_PREFIX_PATH = $qtRoot
+          $qtCmakeDir = Join-Path $qtRoot "lib\cmake\Qt6"
+          "qt6-dir=$qtCmakeDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        id: set-qt-env
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          $qt6Dir = "${{ steps.set-qt-env.outputs.qt6-dir }}"
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DQt6_DIR="$qt6Dir" -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH"
       - name: Build drawview
         run: cmake --build build --config Release --parallel
@@ -173,6 +73,16 @@ jobs:
           }
           Copy-Item $exe -Destination "${{ github.workspace }}\staging" -Force
           Write-Host "Copied exe to staging"
+      - name: Run windeployqt to bundle DLLs and plugins
+        shell: pwsh
+        run: |
+          $qtBin = "${{ steps.install-qt.outputs.qt-install-dir }}\bin"
+          $windeployqt = Join-Path $qtBin "windeployqt.exe"
+          $staging = "${{ github.workspace }}\staging"
+          $exe = Join-Path $staging "drawview.exe"
+          & $windeployqt --dir $staging --release --no-translations --no-svg --no-opengl-sw --no-system-d3d-compiler --no-virtualkeyboard --no-quick-import --no-angle $exe
+          if ($LASTEXITCODE -ne 0) { Write-Error "windeployqt failed"; exit $LASTEXITCODE }
+          Write-Host "windeployqt bundled DLLs/plugins to staging"
       - name: Zip staging
         shell: pwsh
         run: |
