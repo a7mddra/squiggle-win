@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
 
     QApplication app(argc, argv);
     
-    app.setApplicationName("spatialshot");
+    app.setApplicationName("drawview");
     app.setOrganizationName("spatialshot"); 
     app.setApplicationVersion("1.0.0");
 
