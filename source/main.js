@@ -6,13 +6,13 @@ function createWindow () {
     width: 800,
     height: 600,
     frame: false,
-    icon: path.join(__dirname, 'assets/icons/light/512.png'),
+    icon: path.join(__dirname, '../assets/icons/light/512.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js')
     }
   });
 
-  win.loadFile('index.html');
+  win.loadFile(path.join(__dirname, './renderer/index.html'));
 
   const imagePath = process.argv.find(arg => arg.toLowerCase().endsWith('.png'));
   if (imagePath) {

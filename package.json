@@ -2,13 +2,13 @@
   "name": "spatialshot",
   "version": "1.0.0",
   "description": "AI and contextual analysis module for screenshot data.",
-  "main": "main.js",
+  "main": "source/main.js",
   "type": "commonjs",
   "author": "a7md <a7mddra@gmail.com>",
   "license": "GPL-3.0",
   "scripts": {
     "start": "electron .",
-    "build:css": "sass tabs/welcome/style.scss:tabs/welcome/style.css",
+    "build:css": "sass source/tabs/login/style.scss:source/tabs/login/style.css",
     "build": "electron-builder"
   },
   "devDependencies": {
