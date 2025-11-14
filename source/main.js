@@ -7,6 +7,7 @@ function createWindow () {
     height: 600,
     frame: false,
     icon: path.join(__dirname, '../assets/icons/light/512.png'),
+    backgroundColor: '#333333',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js')
     }
