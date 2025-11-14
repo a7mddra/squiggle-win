@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Image Viewer</title>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #222;
+      overflow: hidden;
+      -webkit-app-region: drag;
+    }
+    #image, #upload-icon {
+      max-width: 100%;
+      max-height: 100%;
+      -webkit-app-region: no-drag;
+    }
+    #upload-icon {
+      width: 100px;
+      height: 100px;
+      cursor: pointer;
+      fill: #888;
+    }
+    #upload-icon:hover {
+        fill: #fff;
+    }
+  </style>
+</head>
+<body>
+  <img id="image" style="display: none;" />
+  <svg id="upload-icon" viewBox="0 0 24 24">
+    <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+  </svg>
+  <script src="./renderer.js"></script>
+</body>
+</html>
