@@ -25,8 +25,20 @@ jobs:
     - name: Install dependencies
       run: npm install
 
+    - name: Set build target
+      id: set_target
+      shell: bash
+      run: |
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          echo "target=win" >> $GITHUB_OUTPUT
+        elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          echo "target=linux" >> $GITHUB_OUTPUT
+        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          echo "target=mac" >> $GITHUB_OUTPUT
+        fi
+
     - name: Build the app
-      run: npm run build -- --${{ matrix.os }}
+      run: npm run build -- --${{ steps.set_target.outputs.target }}
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
