@@ -1,19 +1,4 @@
-/**
- * Copyright (C) 2025  a7mddra-spatialshot
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
-**/
+
 
 /* Top bar container */
 .topbar {
@@ -21,8 +6,8 @@
     align-items: center;
     padding: 0 21px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    height: 60px; /* Fixed height for panel calculations */
-    flex-shrink: 0; /* Prevent shrinking */
+    height: 60px;
+    flex-shrink: 0;
 }
 
 .drag-region {
@@ -87,7 +72,6 @@
     background: #1db335;
 }
 
-/* Traffic light symbols on hover */
 .traffic-light-btn::after {
     content: '';
     position: absolute;
@@ -182,4 +166,3 @@
 .cat-btn[data-category="settings"].panel-active .icon-active {
   display: block;
 }
-

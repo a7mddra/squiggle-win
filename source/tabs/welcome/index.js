@@ -1,17 +1,6 @@
 const fileInput = document.getElementById('fileInput');
 const uploadArea = document.getElementById('uploadArea');
 
-// --- Traffic Light Controls ---
-document.querySelector('.close-btn').addEventListener('click', () => {
-  window.electron.closeWindow();
-});
-document.querySelector('.minimize-btn').addEventListener('click', () => {
-  window.electron.minimizeWindow();
-});
-document.querySelector('.maximize-btn').addEventListener('click', () => {
-  window.electron.maximizeWindow();
-});
-
 // --- File Handling ---
 
 // Click on upload area to open file dialog

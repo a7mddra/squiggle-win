@@ -1,28 +1,13 @@
-/**
- * Copyright (C) 2025  a7mddra-spatialshot
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
-**/
 
-import { showFeedbackMessage } from '../../shared/utils.js';
+
+import { showFeedbackMessage } from '../../renderer/utilities.js';
 import { createPromptView } from './prompt.js';
 
 let avatar, userName, userEmail;
 
-export function createSettingsPage() {
-  const page = document.createElement('div');
-  page.className = 'settings-page';
+export function createSettingsPanel() {
+  const panel = document.createElement('div');
+  panel.className = 'settings-panel';
   const electronAPI = window.electronAPI;
 
   const userInfo = document.createElement('div');
@@ -95,20 +80,20 @@ export function createSettingsPage() {
   buttonGroup.appendChild(githubBtn);
 
   // Create sub-views
-  const promptView = createPromptView(page, electronAPI, showFeedbackMessage);
+  const promptView = createPromptView(panel, electronAPI, showFeedbackMessage);
 
   // Attach event listeners for opening sub-views
   promptBtn.addEventListener('click', () => {
     promptView.classList.add('active');
-    page.classList.add('subview-active');
+    panel.classList.add('subview-active');
   });
 
-  // Append everything to page
-  page.appendChild(userInfo);
-  page.appendChild(buttonGroup);
-  page.appendChild(promptView);
+  // Append everything to panel
+  panel.appendChild(userInfo);
+  panel.appendChild(buttonGroup);
+  panel.appendChild(promptView);
 
-  return page;
+  return panel;
 }
 
 export async function updateUserInfo() {

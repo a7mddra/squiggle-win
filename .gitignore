@@ -2,5 +2,6 @@
 
 node_modules
 dist
+.dev
 config.private.json
 !.gitignore

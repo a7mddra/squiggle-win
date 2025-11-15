@@ -1,4 +1,4 @@
-import { createSettingsPage } from '../tabs/settings/index.js';
+import { createSettingsPanel } from '../tabs/settings/index.js';
 
 const loginScreen = document.getElementById('login-screen');
 const image = document.getElementById('image');
@@ -46,8 +46,8 @@ function initializeSettingsPanel() {
   const panelOverlay = document.getElementById("panel-overlay");
   const settingsContent = document.getElementById("settings-content");
 
-  const settingsPage = createSettingsPage();
-  settingsContent.appendChild(settingsPage);
+  const settingsPanel = createSettingsPanel();
+  settingsContent.appendChild(settingsPanel);
 
   const settingsBtn = document.querySelector(
     '.cat-btn[data-category="settings"]'
@@ -91,8 +91,8 @@ function initializeSettingsPanel() {
       const promptView = document.getElementById('promptView');
       if (promptView) {
         promptView.classList.remove('active');
-        const settingsPage = document.querySelector('.settings-page');
-        if (settingsPage) settingsPage.classList.remove('subview-active');
+        const settingsPanel = document.querySelector('.settings-panel');
+        if (settingsPanel) settingsPanel.classList.remove('subview-active');
       }
     }
   });
