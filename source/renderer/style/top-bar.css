@@ -96,7 +96,7 @@
 }
 
 .close-btn:hover::after {
-    content: '×';
+    content: '\00D7';
     color: #6b1c1c;
     font-size: 13px;
     font-weight: bold;
@@ -104,7 +104,7 @@
 }
 
 .minimize-btn:hover::after {
-    content: '−';
+    content: '\2212';
     color: #7a5c0d;
     font-size: 13px;
     font-weight: bold;
@@ -112,7 +112,7 @@
 }
 
 .maximize-btn:hover::after {
-    content: '+';
+    content: '\002B';
     color: #0f5c1e;
     font-size: 13px;
     font-weight: bold;

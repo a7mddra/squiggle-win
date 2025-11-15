@@ -1,17 +1,20 @@
+const loginScreen = document.getElementById('login-screen');
 const image = document.getElementById('image');
-const uploadIcon = document.getElementById('upload-icon');
+const loginBtn = document.getElementById('login-btn');
+let imagePath;
 
 window.electron.onImagePath((path) => {
-  image.src = path;
-  image.style.display = 'block';
-  uploadIcon.style.display = 'none';
+  imagePath = path;
 });
 
-uploadIcon.addEventListener('click', async () => {
-  const filePath = await window.electron.openFileDialog();
-  if (filePath) {
-    image.src = filePath;
+loginBtn.addEventListener('click', () => {
+  if (imagePath) {
+    image.src = imagePath;
     image.style.display = 'block';
-    uploadIcon.style.display = 'none';
+    loginScreen.style.display = 'none';
   }
 });
+
+// Initially, show the login screen
+loginScreen.style.display = 'block';
+image.style.display = 'none';
