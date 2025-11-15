@@ -6,11 +6,16 @@ function createWindow () {
     width: 800,
     height: 600,
     frame: false,
+    show: false,
     icon: path.join(__dirname, '../assets/icons/light/512.png'),
     backgroundColor: '#333333',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js')
     }
+  });
+
+  win.on('ready-to-show', () => {
+    win.show();
   });
 
   const imagePath = process.argv.find(arg => arg.toLowerCase().endsWith('.png'));

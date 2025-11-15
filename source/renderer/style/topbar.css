@@ -16,7 +16,7 @@
 **/
 
 /* Top bar container */
-.top-bar {
+.topbar {
     display: flex;
     align-items: center;
     padding: 0 21px;
@@ -170,3 +170,16 @@
 .cat-btn.active .icon-active {
     display: block;
 }
+
+.cat-btn[data-category="settings"].panel-active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.cat-btn[data-category="settings"].panel-active .icon-normal {
+  display: none;
+}
+
+.cat-btn[data-category="settings"].panel-active .icon-active {
+  display: block;
+}
+
