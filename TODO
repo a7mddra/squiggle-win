@@ -1,7 +1,15 @@
 # TODO
 
 **task 4:**
-    let's build the aimode tab. i want to detach the image viewer screen and start the app with aimode tab selected. in aimode we will send the image (that img was in image viewer before) via api to ai to review. we will send it with the prompt saved in the settings tab. correct the logic of 'customize prompt' option to be synced with aimode tab then we will send this prompt attached with the image then print the api response.
-    for the styling we need to follow the satandard broser LLMs theme (chat-like) with animations (token by token printing) and modern scene (formal&quite not hyped).
-    for the flow: think of it a gemini/gpt chat but first msg is automated img+saved prompt and ai responsed. the user has a prompt box to chat with the api this prompt is so simple just text no media or audio. for the engineering we need to send the chat history (texts only) to the api with every new prompt, i dont know how real LLMs work but make it the same way they work without reaching charchters limit or whatever. in the same tab create `model` option if pressed it should lit apis avaialble. we will fill it with free gemini flash api for now as a starter, but complete it's logic like if user chose another model during any part of the chat it should start a new chat with the same flow first msg is ready with the saved prompt.
-    do not forget error handlings like api server busy or quota reached or any other ai failurs..
+let's build the aimode tab. i want to detach the image viewer screen and start the app with aimode tab selected. in aimode we will send the image (that img was in image viewer before) via api to ai to review. we will send it with the prompt saved in the settings tab. correct the logic of 'customize prompt' option to be synced with aimode tab then we will send this prompt attached with the image then print the api response.
+you can access the api via config.private.json {gemini block} then in js simple call:
+
+```js
+const config = require('./config.private.json');
+api = config.google_gemini.api_key
+```
+
+this helps us ignore things on github carefuly.
+for the styling we need to follow the satandard broser LLMs theme (chat-like) with animations (token by token printing) and modern scene (formal&quite not hyped).
+for the flow: think of it a gemini/gpt chat but first msg is automated img+saved prompt and ai responsed. the user has a prompt box to chat with the api this prompt is so simple just text no media or audio. for the engineering we need to send the chat history (texts only) to the api with every new prompt, i dont know how real LLMs work but make it the same way they work without reaching charchters limit or whatever. in the same tab create `model` option if pressed it should lit apis avaialble. we will fill it with free gemini flash api for now as a starter, but complete it's logic like if user chose another model during any part of the chat it should start a new chat with the same flow first msg is ready with the saved prompt.
+do not forget error handlings like api server busy or quota reached or any other ai failurs..
