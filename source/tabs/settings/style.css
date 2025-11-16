@@ -21,7 +21,7 @@
     right: 18px;
     width: 250px;
     height: auto;
-    background: rgba(0, 0, 0, 0.116);
+    background: rgba(0, 0, 0, 0.308);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     box-shadow: var(--shadow);
@@ -231,11 +231,6 @@
     font-weight: 600;
 }
 
-.btn-arrow {
-    color: var(--gray);
-    font-size: 0.9rem;
-}
-
 .toggle {
     position: relative;
     display: inline-block;
@@ -313,7 +308,7 @@ input:checked+.toggle-slider:before {
 .footer {
     text-align: center;
     padding: 1.5rem;
-    color: var(--gray);
+    color: white;
     font-size: 0.9rem;
     border-top: 1px solid rgba(0, 0, 0, 0.08);
 }

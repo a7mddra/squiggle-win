@@ -1,3 +1,7 @@
+import { setupTrafficLights } from '../../renderer/utilities.js';
+
+setupTrafficLights();
+
 const fileInput = document.getElementById('fileInput');
 const uploadArea = document.getElementById('uploadArea');
 
