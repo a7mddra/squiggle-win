@@ -1,5 +1,7 @@
 import { createSettingsPanel } from '../tabs/settings/index.js';
 import { setupTrafficLights, showFeedbackMessage } from './utilities.js';
+import { createAiModeTab } from '../tabs/aimode/index.js';
+import { createGoLensTab } from '../tabs/golens/index.js';
 
 setupTrafficLights();
 showFeedbackMessage("", "setup");
@@ -7,6 +9,7 @@ showFeedbackMessage("", "setup");
 const loginScreen = document.getElementById('login-screen');
 const image = document.getElementById('image');
 const loginBtn = document.getElementById('login-btn');
+const contentContainer = document.getElementById('content-container');
 let imagePath;
 
 window.electron.onImagePath((path) => {
@@ -25,6 +28,45 @@ loginBtn.addEventListener('click', () => {
 loginScreen.style.display = 'block';
 image.style.display = 'none';
 
+const tabs = {
+  aimode: createAiModeTab(),
+  lens: createGoLensTab(),
+};
+
+let activeTab = null;
+
+function switchTab(category) {
+  if (activeTab === category) return;
+
+  // Update button states
+  const buttons = document.querySelectorAll('.cat-btn');
+  buttons.forEach(btn => {
+    if (btn.dataset.category === category) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  // Clear content and append new tab
+  contentContainer.innerHTML = '';
+  contentContainer.appendChild(tabs[category]);
+
+  activeTab = category;
+}
+
+const navButtons = document.querySelectorAll('.category-nav-left .cat-btn');
+navButtons.forEach(button => {
+  button.addEventListener('click', (e) => {
+    if (loginScreen.style.display !== 'none') return;
+    const category = e.currentTarget.dataset.category;
+    switchTab(category);
+  });
+});
+
+// Set a default tab to be active on startup after login
+// For now, let's not show any tab until login is "complete"
+// switchTab('aimode'); // removed to not show a tab by default
 
 function toggleSettingsPanel() {
   const panel = document.getElementById("panel");

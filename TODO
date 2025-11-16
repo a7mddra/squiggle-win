@@ -1,4 +1,4 @@
 # TODO
 
-**task 2:**
+**task 2:** (done)
     make the nav-left buttons work. i want if aimode pressed to be in active mode (icon + hover) and same for the golens butn also for the content make both empty screens for now but ready to code like create for each screen its index.js in the correct place in /tabs/ with a centered text "this is $xx tab" so i can nav between them with the 2 buttons.
