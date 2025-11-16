@@ -4,7 +4,7 @@
   "description": "AI and contextual analysis module for screenshot data.",
   "main": "source/main.js",
   "type": "commonjs",
-  "author": "a7md <a7mddra@gmail.com>",
+  "author": "a7mddra <a7mddra@gmail.com>",
   "license": "GPL-3.0",
   "scripts": {
     "start": "electron .",
@@ -16,7 +16,7 @@
     "electron-builder": "^24.9.1"
   },
   "build": {
-    "appId": "com.a7md.spatialshot",
+    "appId": "com.a7mddra.spatialshot",
     "productName": "SpatialShot",
     "asar": false,
     "icon": "assets/icons/light/512.png",
