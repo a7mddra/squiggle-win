@@ -23,5 +23,12 @@
     "redirect_uris": [
       "http://localhost:3000/auth/google/callback"
     ]
+  },
+  "google_gemini": {
+    "__comment": "Configuration for Google Gemini API. Credentials can be obtained from the Google Cloud Console under 'APIs & Services' > 'Credentials'.",
+    "api_key": "YOUR_GEMINI_API_KEY_HERE",
+    "api_endpoint": "YOUR_GEMINI_API_ENDPOINT_HERE",
+    "project_name": "YOUR_GCP_PROJECT_NAME_HERE",
+    "project_number": "YOUR_GCP_PROJECT_NUMBER_HERE"
   }
 }
