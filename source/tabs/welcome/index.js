@@ -1,18 +1,15 @@
-import { setupTrafficLights } from '../../renderer/utilities.js';
+import { setupTrafficLights, showFeedbackMessage } from '../../renderer/utilities.js';
 
 setupTrafficLights();
+showFeedbackMessage("", "setup", "custom");
 
 const fileInput = document.getElementById('fileInput');
 const uploadArea = document.getElementById('uploadArea');
 
-// --- File Handling ---
-
-// Click on upload area to open file dialog
 uploadArea.addEventListener('click', () => {
   fileInput.click();
 });
 
-// Press Enter when area focused
 uploadArea.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' || e.key === ' ') {
     e.preventDefault();
@@ -20,10 +17,8 @@ uploadArea.addEventListener('keydown', (e) => {
   }
 });
 
-// File input change
 fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
 
-// Drag & Drop on upload area
 ['dragenter','dragover'].forEach(ev => {
   uploadArea.addEventListener(ev, (e) => {
     e.preventDefault();
@@ -47,39 +42,29 @@ uploadArea.addEventListener('drop', (e) => {
   }
 });
 
-// Paste support (disabled as per instructions)
-document.addEventListener('paste', (e) => {
-  alert('Pasting images is not supported. Please save the image, then drag & drop or click to upload.');
-});
-
 function handleFiles(files) {
   if (!files || !files.length) return;
   const file = files[0];
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+  const maxSize = 20 * 1024 * 1024; // 20MB
 
-  if (!file.type.startsWith('image/')) {
-    alert('Please select an image file (PNG, JPG, WEBP).');
-    return;
-  }
-  if (file.type === 'image/gif') {
-    alert('GIFs are not supported.');
+  if (!allowedTypes.includes(file.type)) {
+    showFeedbackMessage('Unsupported format.', 'error', "custom");
     return;
   }
 
-  // The user wants to maintain the old logic, which requires a file path.
-  if (file.path) {
-    if (window.electron && typeof window.electron.sendImagePath === 'function') {
+  if (file.size > maxSize) {
+    showFeedbackMessage('File too large.', 'error', "custom");
+    return;
+  }
+
+  if (file.path && window.electron && typeof window.electron.sendImagePath === 'function') {
       window.electron.sendImagePath(file.path);
-      // Assuming the main process will now switch to the login tab.
-    } else {
-      alert('Error: Cannot communicate with the main application.');
-    }
   } else {
-    // This case should not be reached with paste disabled.
-    alert('An unexpected error occurred. Please click to upload your file.');
+    showFeedbackMessage('An Error occurred.', 'error', "custom");
   }
 }
 
-// Small accessibility feature: focus outline for keyboard users only
 function handleFirstTab(e) {
   if (e.key === 'Tab') document.documentElement.classList.add('user-is-tabbing');
   window.removeEventListener('keydown', handleFirstTab);

@@ -14,11 +14,11 @@ export function setupTrafficLights() {
   });
 }
 
-export function showFeedbackMessage(message, type) {
+export function showFeedbackMessage(message, type, state="default") {
   const feedbackMessage = document.getElementById("feedbackMessage");
   feedbackMessage.textContent = message;
   feedbackMessage.className = "feedback-message";
-  feedbackMessage.classList.add(type, "show");
+  feedbackMessage.classList.add(state, type, "show");
 
   setTimeout(() => {
     feedbackMessage.classList.remove("show");

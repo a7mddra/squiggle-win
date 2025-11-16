@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 function createWindow () {
   const win = new BrowserWindow({
@@ -20,6 +21,18 @@ function createWindow () {
 
   const imagePath = process.argv.find(arg => arg.toLowerCase().endsWith('.png'));
   if (imagePath) {
+    const maxSize = 20 * 1024 * 1024; // 20MB
+    if (!fs.existsSync(imagePath)) {
+      console.error('Error: Image not found at path:', imagePath);
+      app.exit(1);
+    }
+
+    const stat = fs.statSync(imagePath);
+    if (stat.size > maxSize) {
+      console.error('Error: Image size exceeds 20MiB limit.');
+      app.exit(1);
+    }
+
     win.loadFile(path.join(__dirname, './renderer/index.html'));
     win.webContents.on('did-finish-load', () => {
       win.webContents.send('image-path', imagePath);

@@ -2,6 +2,7 @@ import { createSettingsPanel } from '../tabs/settings/index.js';
 import { setupTrafficLights, showFeedbackMessage } from './utilities.js';
 
 setupTrafficLights();
+showFeedbackMessage("", "setup");
 
 const loginScreen = document.getElementById('login-screen');
 const image = document.getElementById('image');
