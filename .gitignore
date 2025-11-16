@@ -4,5 +4,4 @@
 node_modules
 dist
 .dev
-TODO
 config.private.json
