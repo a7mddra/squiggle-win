@@ -19,7 +19,7 @@ function createWindow () {
     win.show();
   });
 
-  const imagePath = process.argv.find(arg => arg.toLowerCase().endsWith('.png'));
+  const imagePath = process.argv.find(arg => arg.toLowerCase().match(/\.(png|jpe?g|bmp|webp)$/));
   if (imagePath) {
     const maxSize = 20 * 1024 * 1024; // 20MB
     if (!fs.existsSync(imagePath)) {
@@ -33,18 +33,35 @@ function createWindow () {
       app.exit(1);
     }
 
+    // Build image metadata object and send it to renderer
+    const ext = path.extname(imagePath).replace('.', '').toLowerCase();
+    const imageMeta = {
+      path: imagePath,
+      size: stat.size,
+      format: ext
+    };
+
     win.loadFile(path.join(__dirname, './renderer/index.html'));
     win.webContents.on('did-finish-load', () => {
-      win.webContents.send('image-path', imagePath);
+      win.webContents.send('image-data', imageMeta);
     });
   } else {
     win.loadFile(path.join(__dirname, './tabs/welcome/index.html'));
   }
 
   ipcMain.on('image-path', (event, imagePath) => {
+    // When renderer requests to send an image path (from welcome tab), build metadata and forward
+    if (!fs.existsSync(imagePath)) return;
+    const stat = fs.statSync(imagePath);
+    const ext = path.extname(imagePath).replace('.', '').toLowerCase();
+    const imageMeta = {
+      path: imagePath,
+      size: stat.size,
+      format: ext
+    };
     win.loadFile(path.join(__dirname, './renderer/index.html'));
     win.webContents.on('did-finish-load', () => {
-      win.webContents.send('image-path', imagePath);
+      win.webContents.send('image-data', imageMeta);
     });
   });
 }

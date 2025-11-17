@@ -7,30 +7,47 @@ setupTrafficLights();
 showFeedbackMessage("", "setup");
 
 const loginScreen = document.getElementById('login-screen');
-const image = document.getElementById('image');
+let imageData = null;
 const loginBtn = document.getElementById('login-btn');
 const contentContainer = document.getElementById('content-container');
 let imagePath;
 
+// Listen for the richer image-data object from main
+if (window.electron.onImageData) {
+  window.electron.onImageData((data) => {
+    imageData = data;
+    // If user already logged in (login screen hidden), recreate tabs so they get the metadata
+    if (loginScreen.style.display === 'none') {
+      const prevActive = activeTab;
+      tabs = {
+        aimode: createAiModeTab(imageData),
+        lens: createGoLensTab(imageData),
+      };
+      // Re-attach the current active tab to update the view
+      if (prevActive) switchTab(prevActive);
+    }
+  });
+}
+
 window.electron.onImagePath((path) => {
-  imagePath = path;
+  // legacy/simple path listener (keep for backward compatibility)
+  imageData = { path };
 });
 
 loginBtn.addEventListener('click', () => {
-  if (imagePath) {
-    image.src = imagePath;
-    image.style.display = 'block';
-    loginScreen.style.display = 'none';
-  }
+  // Hide login and immediately switch to aimode tab.
+  loginScreen.style.display = 'none';
+
+  // Ensure tabs are created and the aimode tab is active. If we have imageData, recreate tabs so they receive it.
+  initializeTabsAndSwitch();
 });
 
 // Initially, show the login screen
 loginScreen.style.display = 'block';
-image.style.display = 'none';
 
-const tabs = {
-  aimode: createAiModeTab(),
-  lens: createGoLensTab(),
+let tabs = {
+  aimode: createAiModeTab(null),
+  lens: createGoLensTab(null),
 };
 
 let activeTab = null;
@@ -64,9 +81,16 @@ navButtons.forEach(button => {
   });
 });
 
-// Set a default tab to be active on startup after login
-// For now, let's not show any tab until login is "complete"
-// switchTab('aimode'); // removed to not show a tab by default
+function initializeTabsAndSwitch() {
+  // If we have imageData, recreate tabs so they receive the data object
+  tabs = {
+    aimode: createAiModeTab(imageData),
+    lens: createGoLensTab(imageData),
+  };
+
+  // Immediately switch to aimode
+  switchTab('aimode');
+}
 
 function toggleSettingsPanel() {
   const panel = document.getElementById("panel");
